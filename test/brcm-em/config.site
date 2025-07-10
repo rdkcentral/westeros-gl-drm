@@ -1,3 +1,0 @@
-CPPFLAGS="-I${includedir} -fpermissive -fprofile-arcs -ftest-coverage -O0"
-LDFLAGS="-L${libdir} -lgcov --coverage"
-
