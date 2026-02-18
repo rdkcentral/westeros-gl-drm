@@ -23,7 +23,8 @@ lib_LTLIBRARIES = libresolutionmodule.la
 
 libresolutionmodule_la_SOURCES = module.cpp
 
-libresolutionmodule_la_CXXFLAGS= $(AM_CFLAGS) $(libdrm_CFLAGS) -I$(top_srcdir)/../../../
+libresolutionmodule_la_CXXFLAGS= $(AM_CFLAGS) $(libdrm_CFLAGS) -I$(abs_top_srcdir)/../../build/external/westeros
+
 
 libresolutionmodule_la_LDFLAGS= \
    $(AM_LDFLAGS) \
