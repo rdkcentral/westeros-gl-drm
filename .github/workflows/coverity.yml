@@ -1,0 +1,97 @@
+name: Build Westeros GL DRM
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build on Ubuntu
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          chmod +x install-dependencies.sh
+          ./install-dependencies.sh
+        
+      - name: Build project
+        run: |
+          chmod +x build-dependencies.sh
+          ./build-dependencies.sh --skip-install
+      
+      - name: Collect build artifacts
+        run: |
+          # Create artifacts directory
+          mkdir -p artifacts/lib
+          mkdir -p artifacts/bin
+          mkdir -p artifacts/include
+          
+          # Copy main libraries
+          if [ -d "build/main/.libs" ]; then
+            cp -v build/main/.libs/*.so* artifacts/lib/ 2>/dev/null || true
+            cp -v build/main/.libs/*.la artifacts/lib/ 2>/dev/null || true
+          fi
+          
+          # Copy main binaries
+          if [ -f "build/main/westeros-gl-console" ]; then
+            cp -v build/main/westeros-gl-console artifacts/bin/
+          fi
+          if [ -f "build/main/.libs/westeros-gl-console" ]; then
+            cp -v build/main/.libs/westeros-gl-console artifacts/bin/
+          fi
+          
+          # Copy resolution module
+          if [ -d "build/modules/resolution/.libs" ]; then
+            cp -v build/modules/resolution/.libs/*.so* artifacts/lib/ 2>/dev/null || true
+            cp -v build/modules/resolution/.libs/*.la artifacts/lib/ 2>/dev/null || true
+          fi
+          
+          # Copy headers
+          if [ -d "westeros-gl" ]; then
+            cp -v westeros-gl/*.h artifacts/include/ 2>/dev/null || true
+          fi
+          
+          # Copy westeros headers
+          if [ -d "external/westeros" ]; then
+            cp -v external/westeros/*.h artifacts/include/ 2>/dev/null || true
+          fi
+          if [ -d "build/external/westeros" ]; then
+            cp -v build/external/westeros/*.h artifacts/include/ 2>/dev/null || true
+          fi
+          
+          # Create build info
+          echo "Build Date: $(date)" > artifacts/BUILD_INFO.txt
+          echo "Commit: ${{ github.sha }}" >> artifacts/BUILD_INFO.txt
+          echo "Branch: ${{ github.ref_name }}" >> artifacts/BUILD_INFO.txt
+          echo "" >> artifacts/BUILD_INFO.txt
+          echo "Files:" >> artifacts/BUILD_INFO.txt
+          find artifacts -type f >> artifacts/BUILD_INFO.txt
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: westeros-gl-drm-build-${{ github.sha }}
+          path: artifacts/
+          retention-days: 30
+      
+      - name: Display build summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Libraries Built:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          (ls -lh artifacts/lib/ 2>/dev/null || echo "No libraries found") >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Binaries Built:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          (ls -lh artifacts/bin/ 2>/dev/null || echo "No binaries found") >> $GITHUB_STEP_SUMMARY
