@@ -289,6 +289,7 @@ int WstGLConsoleCommand( char *cmd, char **rsp )
 {
    int nRC= -1;
    WstDisplayClientConnection *conn= 0;
+   printf("Test coverity workflow: [%s]\n");
 
    conn= wstCreateDisplayClientConnection();
    if ( !conn )

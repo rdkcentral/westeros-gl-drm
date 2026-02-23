@@ -19,6 +19,8 @@
 
 AUTOMAKE_OPTIONS = subdir-objects
 
+AM_CFLAGS = -Wno-format
+
 lib_LTLIBRARIES = libresolutionmodule.la
 
 libresolutionmodule_la_SOURCES = module.cpp

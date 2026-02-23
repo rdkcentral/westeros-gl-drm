@@ -21,7 +21,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 SUBDIRS =
 
-AM_CFLAGS = 
+AM_CFLAGS = -Wno-format
 
 AM_LDFLAGS = 
 
