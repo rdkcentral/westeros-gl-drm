@@ -48,6 +48,7 @@
 #include <drm/drm_fourcc.h>
 
 #include "westeros-gl.h"
+#include "westeros-gl-drm-version.h"
 
 #ifdef DRM_USE_VIDEO_FENCE
 #include "linux/dma-buf.h"
@@ -4641,6 +4642,8 @@ static WstGLCtx *wstInitCtx( void )
    int rc;
    struct drm_set_client_cap clientCap;
    struct drm_mode_atomic atom;
+
+   INFO("westeros-gl-drm version " WST_GL_DRM_VERSION_FMT, WST_GL_DRM_VERSION );
 
    const char *env= getenv("WESTEROS_GL_GRAPHICS_MAX_SIZE");
    if ( env )
