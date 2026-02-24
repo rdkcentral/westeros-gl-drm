@@ -4643,7 +4643,7 @@ static WstGLCtx *wstInitCtx( void )
    struct drm_set_client_cap clientCap;
    struct drm_mode_atomic atom;
 
-   INFO("westeros-gl-drm version " WST_GL_DRM_VERSION_FMT, WST_GL_DRM_VERSION );
+   INFO("westeros GL version " WST_GL_DRM_VERSION_FMT, WST_GL_DRM_VERSION );
 
    const char *env= getenv("WESTEROS_GL_GRAPHICS_MAX_SIZE");
    if ( env )
