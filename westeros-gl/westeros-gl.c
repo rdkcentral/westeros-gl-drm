@@ -1,5 +1,5 @@
 /*
- * If not stated otherwise in this file or this component's Licenses.txt file the
+ * If not stated otherwise in this file or this component's LICENSE file the
  * following copyright and licenses apply:
  *
  * Copyright 2016 RDK Management
@@ -5339,7 +5339,6 @@ static void wstTermCtx( WstGLCtx *ctx )
          ctx->drmFd= -1;
       }
       pthread_mutex_destroy( &ctx->mutex );
-      free( ctx );
 
       pthread_mutex_unlock( &gMutex );
       while( gSizeListeners )
@@ -5355,6 +5354,7 @@ static void wstTermCtx( WstGLCtx *ctx )
          gResources= 0;
       }
       pthread_mutex_unlock( &resMutex );
+      free( ctx );
    }
 }
 
