@@ -51,8 +51,8 @@ Tag: Westeros-1.01.62
 ### Changes
 
 * v4l2: Fix frame dropping boundary condition for seek accuracy
-* v4l2: fix compile error on platforms without V4L2_PIX_FMT_AV1 defined
-* v4l2:Fix thread race condition causing video decode crashes
+* v4l2: Fix compile error on platforms without V4L2_PIX_FMT_AV1 defined
+* v4l2: Fix thread race condition causing video decode crashes
 * brcm: Increase EOS "safety net" timeout.  Currently too short for I-frame only streams (like REW)
 * v4l2: update video decode error
 
