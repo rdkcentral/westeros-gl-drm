@@ -1,7 +1,5 @@
 # Changelog
 
-This changelog consolidates the release notes from `docs/relnotes` in descending order.
-
 ## 2.1.0
 
 Date: 24 February 2026  
@@ -24,7 +22,7 @@ Tag: 2.1.0
 ## 2.0.0
 
 Date: 10 January 2026  
-Tag: Westeros-2.0.0
+Tag: 2.0.0
 
 ### Changes
 
