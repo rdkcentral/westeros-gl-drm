@@ -2,7 +2,7 @@
 
 ## 2.1.0
 
-Date: 24 February 2026  
+Date: 2026-02-24  
 Tag: 2.1.0
 
 ### Changes
@@ -21,7 +21,7 @@ Tag: 2.1.0
 
 ## 2.0.0
 
-Date: 10 January 2026  
+Date: 2026-01-10  
 Tag: 2.0.0
 
 ### Changes
@@ -45,7 +45,7 @@ The changes:
 
 ## 1.01.62
 
-Date: Oct 28, 2025  
+Date: 2025-10-28  
 Tag: Westeros-1.01.62
 
 ### Changes
@@ -67,7 +67,7 @@ Tag: Westeros-1.01.62
 
 ## 1.01.61
 
-Date: Sep 30, 2025  
+Date: 2025-09-30  
 Tag: Westeros-1.01.61
 
 ### Changes
@@ -85,7 +85,7 @@ Tag: Westeros-1.01.61
 
 ## 1.01.60
 
-Date: Sep 10, 2025  
+Date: 2025-09-10  
 Tag: Westeros-1.01.60
 
 ### Changes
