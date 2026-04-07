@@ -2368,12 +2368,16 @@ exit:
       if ( !conn->videoPlane->keepLastFrame )
       {
          drmModePlane *plane= conn->videoPlane->plane;
+	 int drmFd= gCtx->drmFd;
+	 uint32_t hDisplay= gCtx->modeInfo->hdisplay;
+	 uint32_t vDisplay= gCtx->modeInfo->vdisplay;
+	 long long delay= 16667*2LL;
+
          if ( gCtx->enc )
          {
             plane->crtc_id= gCtx->enc->crtc_id;
          }
          DEBUG("wstVideoServerConnectionThread: drmModeSetPlane plane_id %d crtc_id %d", plane->plane_id, plane->crtc_id);
-	 long long delay= 16667*2LL;
 	 if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
 	 {
 		 delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
@@ -2381,19 +2385,19 @@ exit:
 	 pthread_mutex_unlock( &gCtx->mutex );
 	 pthread_mutex_unlock( &gMutex );
 
-         rc= drmModeSetPlane( gCtx->drmFd,
+         rc= drmModeSetPlane( drmFd,
                               plane->plane_id,
                               plane->crtc_id,
                               0, // fbid
                               0, // flags
                               0, // plane x
                               0, // plane y
-                              gCtx->modeInfo->hdisplay,
-                              gCtx->modeInfo->vdisplay,
+                              hDisplay,
+                              vDisplay,
                               0, // fb rect x
                               0, // fb rect y
-                              gCtx->modeInfo->hdisplay<<16,
-                              gCtx->modeInfo->hdisplay<<16 );
+                              hDisplay<<16,
+                              hDisplay<<16 );
 
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
             usleep( delay );
