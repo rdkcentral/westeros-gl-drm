@@ -2356,7 +2356,6 @@ static void *wstVideoServerConnectionThread( void *arg )
 exit:
    if ( conn->videoPlane && gCtx )
    {
-      VideoFrameManager *savedVfm= NULL;	   
       pthread_mutex_lock( &gMutex );
       pthread_mutex_lock( &gCtx->mutex );
 
@@ -2397,7 +2396,7 @@ exit:
                               0, // fb rect x
                               0, // fb rect y
                               hDisplay<<16,
-                              hDisplay<<16 );
+                              vDisplay<<16 );
 
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
             usleep( delay );
