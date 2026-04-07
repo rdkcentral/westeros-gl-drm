@@ -2363,59 +2363,67 @@ exit:
       {
          wstSelectRate( gCtx, gCtx->defaultRate, 1 );
       }
-
       conn->videoPlane->inUse= false;
       if ( !conn->videoPlane->keepLastFrame )
       {
          drmModePlane *plane= conn->videoPlane->plane;
+	 int drmFd= gCtx->drmFd;
+	 uint32_t hDisplay= gCtx->modeInfo->hdisplay;
+	 uint32_t vDisplay= gCtx->modeInfo->vdisplay;
+	 long long delay= 16667*2LL;
+
          if ( gCtx->enc )
          {
             plane->crtc_id= gCtx->enc->crtc_id;
          }
          DEBUG("wstVideoServerConnectionThread: drmModeSetPlane plane_id %d crtc_id %d", plane->plane_id, plane->crtc_id);
-         rc= drmModeSetPlane( gCtx->drmFd,
+	 if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
+	 {
+		 delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
+	 }
+	 pthread_mutex_unlock( &gCtx->mutex );
+	 pthread_mutex_unlock( &gMutex );
+
+         rc= drmModeSetPlane( drmFd,
                               plane->plane_id,
                               plane->crtc_id,
                               0, // fbid
                               0, // flags
                               0, // plane x
                               0, // plane y
-                              gCtx->modeInfo->hdisplay,
-                              gCtx->modeInfo->vdisplay,
+                              hDisplay,
+                              vDisplay,
                               0, // fb rect x
                               0, // fb rect y
-                              gCtx->modeInfo->hdisplay<<16,
-                              gCtx->modeInfo->hdisplay<<16 );
+                              hDisplay<<16,
+                              vDisplay<<16 );
 
-         {
-            long long delay= 16667*2LL;
-            if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
-            {
-               delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
-            }
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
-            pthread_mutex_unlock( &gCtx->mutex );
-            pthread_mutex_unlock( &gMutex );
             usleep( delay );
-            pthread_mutex_lock( &gMutex );
-            pthread_mutex_lock( &gCtx->mutex );
-         }
       }
+      else
+      {
+	      pthread_mutex_unlock( &gCtx->mutex );
+	      pthread_mutex_unlock( &gMutex );
+      }
+
 
       wstVideoServerFreeBuffers( conn, true );
+      pthread_mutex_lock( &gMutex );
+      pthread_mutex_lock( &gCtx->mutex );
 
+      VideoFrameManager *savedVfm= conn->videoPlane->vfm;
+      conn->videoPlane->vfm= 0;
       pthread_mutex_unlock( &gCtx->mutex );
-
-      if ( conn->videoPlane->vfm )
-      {
-         wstDestroyVideoFrameManager( conn->videoPlane->vfm );
-         conn->videoPlane->vfm= 0;
-      }
 
       wstOverlayFree( &gCtx->overlayPlanes, conn->videoPlane );
       conn->videoPlane= 0;
 
       pthread_mutex_unlock( &gMutex );
+      if(savedVfm)
+      {
+	      wstDestroyVideoFrameManager( savedVfm );
+      }
    }
 
    conn->threadStarted= false;
@@ -7487,7 +7495,6 @@ EGLAPI EGLBoolean eglSwapBuffers( EGLDisplay dpy, EGLSurface surface )
 {
    EGLBoolean result= EGL_FALSE;
    NativeWindowItem *nwIter;
-
    if ( gRealEGLSwapBuffers )
    {
       #ifdef DRM_USE_NATIVE_FENCE
