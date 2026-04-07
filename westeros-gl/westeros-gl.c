@@ -2363,7 +2363,6 @@ exit:
       {
          wstSelectRate( gCtx, gCtx->defaultRate, 1 );
       }
-
       conn->videoPlane->inUse= false;
       if ( !conn->videoPlane->keepLastFrame )
       {
@@ -2373,6 +2372,9 @@ exit:
             plane->crtc_id= gCtx->enc->crtc_id;
          }
          DEBUG("wstVideoServerConnectionThread: drmModeSetPlane plane_id %d crtc_id %d", plane->plane_id, plane->crtc_id);
+	 pthread_mutex_unlock( &gCtx->mutex );
+	 pthread_mutex_unlock( &gMutex );
+
          rc= drmModeSetPlane( gCtx->drmFd,
                               plane->plane_id,
                               plane->crtc_id,
@@ -2394,28 +2396,26 @@ exit:
                delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
             }
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
-            pthread_mutex_unlock( &gCtx->mutex );
-            pthread_mutex_unlock( &gMutex );
             usleep( delay );
-            pthread_mutex_lock( &gMutex );
-            pthread_mutex_lock( &gCtx->mutex );
          }
       }
 
       wstVideoServerFreeBuffers( conn, true );
+      pthread_mutex_lock( &gMutex );
+      pthread_mutex_lock( &gCtx->mutex );
 
+      VideoFrameManager *savedVfm= conn->videoPlane->vfm;
+      conn->videoPlane->vfm= 0;
       pthread_mutex_unlock( &gCtx->mutex );
-
-      if ( conn->videoPlane->vfm )
-      {
-         wstDestroyVideoFrameManager( conn->videoPlane->vfm );
-         conn->videoPlane->vfm= 0;
-      }
 
       wstOverlayFree( &gCtx->overlayPlanes, conn->videoPlane );
       conn->videoPlane= 0;
 
       pthread_mutex_unlock( &gMutex );
+      if(savedVfm)
+      {
+	      wstDestroyVideoFrameManager( savedVfm );
+      }
    }
 
    conn->threadStarted= false;
@@ -7487,7 +7487,6 @@ EGLAPI EGLBoolean eglSwapBuffers( EGLDisplay dpy, EGLSurface surface )
 {
    EGLBoolean result= EGL_FALSE;
    NativeWindowItem *nwIter;
-
    if ( gRealEGLSwapBuffers )
    {
       #ifdef DRM_USE_NATIVE_FENCE
