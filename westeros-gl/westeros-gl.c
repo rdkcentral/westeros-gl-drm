@@ -2356,6 +2356,7 @@ static void *wstVideoServerConnectionThread( void *arg )
 exit:
    if ( conn->videoPlane && gCtx )
    {
+      VideoFrameManager *savedVfm= NULL;	   
       pthread_mutex_lock( &gMutex );
       pthread_mutex_lock( &gCtx->mutex );
 
@@ -2372,6 +2373,11 @@ exit:
             plane->crtc_id= gCtx->enc->crtc_id;
          }
          DEBUG("wstVideoServerConnectionThread: drmModeSetPlane plane_id %d crtc_id %d", plane->plane_id, plane->crtc_id);
+	 long long delay= 16667*2LL;
+	 if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
+	 {
+		 delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
+	 }
 	 pthread_mutex_unlock( &gCtx->mutex );
 	 pthread_mutex_unlock( &gMutex );
 
@@ -2389,16 +2395,15 @@ exit:
                               gCtx->modeInfo->hdisplay<<16,
                               gCtx->modeInfo->hdisplay<<16 );
 
-         {
-            long long delay= 16667*2LL;
-            if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
-            {
-               delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
-            }
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
             usleep( delay );
-         }
       }
+      else
+      {
+	      pthread_mutex_unlock( &gCtx->mutex );
+	      pthread_mutex_unlock( &gMutex );
+      }
+
 
       wstVideoServerFreeBuffers( conn, true );
       pthread_mutex_lock( &gMutex );
