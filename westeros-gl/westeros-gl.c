@@ -1393,44 +1393,53 @@ static void wstFreeVideoFrameResources( VideoFrame *f )
 {
    if ( f )
    {
-      if ( f->vf )
+      if( gCtx )
       {
-         FRAME("freeing sync vf %p advanced %d", f->vf, f->advanced);
+	      pthread_mutex_lock( &gCtx->mutex );
+      }
+      void *vf= f->vf; uint32_t fbId= f->fbId;
+      uint32_t h0= f->handle0, h1= f->handle1;
+      int fd0= f->fd0, fd1= f->fd1, fd2= f->fd2;
+      bool advanced= f->advanced;
+      f->vf= 0; f->fbId= 0; f->handle0= 0; f->handle1= 0;
+      f->fd0= -1; f->fd1= -1; f->fd2= -1;
+      if ( gCtx )
+      {
+	      pthread_mutex_unlock( &gCtx->mutex );
+      }
+
+      if ( vf )
+      {
+         FRAME("freeing sync vf %p advanced %d", vf, advanced);
          #ifdef WESTEROS_GL_AVSYNC
-         if ( f->advanced )
+         if ( advanced )
          {
-            FRAME(" advance pushed wait av-sync to free vf %p", f->vf);
+            FRAME(" advance pushed wait av-sync to free vf %p", vf);
          }
          else
          #endif
          {
-            free( f->vf );
+            free( vf );
          }
-         f->vf= 0;
+         vf= 0;
       }
-      if ( f->fbId )
+      if ( fbId )
       {
-         wstUpdateResources( WSTRES_FB_VIDEO, false, f->fbId, __LINE__);
-         drmModeRmFB( gCtx->drmFd, f->fbId );
-         f->fbId= 0;
-         wstClosePrimeFDHandles( gCtx, f->handle0, f->handle1, __LINE__ );
-         f->handle0= 0;
-         f->handle1= 0;
+         wstUpdateResources( WSTRES_FB_VIDEO, false, fbId, __LINE__);
+         drmModeRmFB( gCtx->drmFd, fbId );
+         wstClosePrimeFDHandles( gCtx, h0, h1, __LINE__ );
       }
-      if ( f->fd0 >= 0 )
+      if ( fd0 >= 0 )
       {
-         wstUpdateResources( WSTRES_FD_VIDEO, false, f->fd0, __LINE__);
-         close( f->fd0 );
-         f->fd0= -1;
-         if ( f->fd1 >= 0 )
+         wstUpdateResources( WSTRES_FD_VIDEO, false, fd0, __LINE__);
+         close( fd0 );
+         if ( fd1 >= 0 )
          {
-            close( f->fd1 );
-            f->fd1= -1;
+            close( fd1 );
          }
-         if ( f->fd2 >= 0 )
+         if ( fd2 >= 0 )
          {
-            close( f->fd2 );
-            f->fd2= -1;
+            close( fd2 );
          }
       }
    }
