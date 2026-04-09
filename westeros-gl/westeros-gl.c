@@ -1393,44 +1393,53 @@ static void wstFreeVideoFrameResources( VideoFrame *f )
 {
    if ( f )
    {
-      if ( f->vf )
+      if( gCtx )
       {
-         FRAME("freeing sync vf %p advanced %d", f->vf, f->advanced);
+	      pthread_mutex_lock( &gCtx->mutex );
+      }
+      void *vf= f->vf; uint32_t fbId= f->fbId;
+      uint32_t h0= f->handle0, h1= f->handle1;
+      int fd0= f->fd0, fd1= f->fd1, fd2= f->fd2;
+      bool advanced= f->advanced;
+      f->vf= 0; f->fbId= 0; f->handle0= 0; f->handle1= 0;
+      f->fd0= -1; f->fd1= -1; f->fd2= -1;
+      if ( gCtx )
+      {
+	      pthread_mutex_unlock( &gCtx->mutex );
+      }
+
+      if ( vf )
+      {
+         FRAME("freeing sync vf %p advanced %d", vf, advanced);
          #ifdef WESTEROS_GL_AVSYNC
-         if ( f->advanced )
+         if ( advanced )
          {
-            FRAME(" advance pushed wait av-sync to free vf %p", f->vf);
+            FRAME(" advance pushed wait av-sync to free vf %p", vf);
          }
          else
          #endif
          {
-            free( f->vf );
+            free( vf );
          }
-         f->vf= 0;
+         vf= 0;
       }
-      if ( f->fbId )
+      if ( fbId )
       {
-         wstUpdateResources( WSTRES_FB_VIDEO, false, f->fbId, __LINE__);
-         drmModeRmFB( gCtx->drmFd, f->fbId );
-         f->fbId= 0;
-         wstClosePrimeFDHandles( gCtx, f->handle0, f->handle1, __LINE__ );
-         f->handle0= 0;
-         f->handle1= 0;
+         wstUpdateResources( WSTRES_FB_VIDEO, false, fbId, __LINE__);
+         drmModeRmFB( gCtx->drmFd, fbId );
+         wstClosePrimeFDHandles( gCtx, h0, h1, __LINE__ );
       }
-      if ( f->fd0 >= 0 )
+      if ( fd0 >= 0 )
       {
-         wstUpdateResources( WSTRES_FD_VIDEO, false, f->fd0, __LINE__);
-         close( f->fd0 );
-         f->fd0= -1;
-         if ( f->fd1 >= 0 )
+         wstUpdateResources( WSTRES_FD_VIDEO, false, fd0, __LINE__);
+         close( fd0 );
+         if ( fd1 >= 0 )
          {
-            close( f->fd1 );
-            f->fd1= -1;
+            close( fd1 );
          }
-         if ( f->fd2 >= 0 )
+         if ( fd2 >= 0 )
          {
-            close( f->fd2 );
-            f->fd2= -1;
+            close( fd2 );
          }
       }
    }
@@ -2363,59 +2372,67 @@ exit:
       {
          wstSelectRate( gCtx, gCtx->defaultRate, 1 );
       }
-
       conn->videoPlane->inUse= false;
       if ( !conn->videoPlane->keepLastFrame )
       {
          drmModePlane *plane= conn->videoPlane->plane;
+	 int drmFd= gCtx->drmFd;
+	 uint32_t hDisplay= gCtx->modeInfo->hdisplay;
+	 uint32_t vDisplay= gCtx->modeInfo->vdisplay;
+	 long long delay= 16667*2LL;
+
          if ( gCtx->enc )
          {
             plane->crtc_id= gCtx->enc->crtc_id;
          }
          DEBUG("wstVideoServerConnectionThread: drmModeSetPlane plane_id %d crtc_id %d", plane->plane_id, plane->crtc_id);
-         rc= drmModeSetPlane( gCtx->drmFd,
+	 if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
+	 {
+		 delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
+	 }
+	 pthread_mutex_unlock( &gCtx->mutex );
+	 pthread_mutex_unlock( &gMutex );
+
+         rc= drmModeSetPlane( drmFd,
                               plane->plane_id,
                               plane->crtc_id,
                               0, // fbid
                               0, // flags
                               0, // plane x
                               0, // plane y
-                              gCtx->modeInfo->hdisplay,
-                              gCtx->modeInfo->vdisplay,
+                              hDisplay,
+                              vDisplay,
                               0, // fb rect x
                               0, // fb rect y
-                              gCtx->modeInfo->hdisplay<<16,
-                              gCtx->modeInfo->hdisplay<<16 );
+                              hDisplay<<16,
+                              vDisplay<<16 );
 
-         {
-            long long delay= 16667*2LL;
-            if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
-            {
-               delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
-            }
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
-            pthread_mutex_unlock( &gCtx->mutex );
-            pthread_mutex_unlock( &gMutex );
             usleep( delay );
-            pthread_mutex_lock( &gMutex );
-            pthread_mutex_lock( &gCtx->mutex );
-         }
       }
+      else
+      {
+	      pthread_mutex_unlock( &gCtx->mutex );
+	      pthread_mutex_unlock( &gMutex );
+      }
+
 
       wstVideoServerFreeBuffers( conn, true );
+      pthread_mutex_lock( &gMutex );
+      pthread_mutex_lock( &gCtx->mutex );
 
+      VideoFrameManager *savedVfm= conn->videoPlane->vfm;
+      conn->videoPlane->vfm= 0;
       pthread_mutex_unlock( &gCtx->mutex );
-
-      if ( conn->videoPlane->vfm )
-      {
-         wstDestroyVideoFrameManager( conn->videoPlane->vfm );
-         conn->videoPlane->vfm= 0;
-      }
 
       wstOverlayFree( &gCtx->overlayPlanes, conn->videoPlane );
       conn->videoPlane= 0;
 
       pthread_mutex_unlock( &gMutex );
+      if(savedVfm)
+      {
+	      wstDestroyVideoFrameManager( savedVfm );
+      }
    }
 
    conn->threadStarted= false;
@@ -7487,7 +7504,6 @@ EGLAPI EGLBoolean eglSwapBuffers( EGLDisplay dpy, EGLSurface surface )
 {
    EGLBoolean result= EGL_FALSE;
    NativeWindowItem *nwIter;
-
    if ( gRealEGLSwapBuffers )
    {
       #ifdef DRM_USE_NATIVE_FENCE
