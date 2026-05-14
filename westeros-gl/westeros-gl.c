@@ -785,7 +785,7 @@ static int wstSetThreadNameAndPriority(const char *threadName, const char *env, 
       rc= pthread_setschedparam(pthread_self(), policy, &param);
       if ( rc )
       {
-         ERROR("failed to set thread policy and priority: %d errno %d", rc, errno);
+         ERROR("failed to set thread policy and priority: %d errno %d", errno);
       }
    }
 
