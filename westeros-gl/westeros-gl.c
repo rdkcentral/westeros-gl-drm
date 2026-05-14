@@ -7395,6 +7395,8 @@ EGLAPI EGLSurface EGLAPIENTRY eglCreateWindowSurface( EGLDisplay dpy, EGLConfig 
 {
    EGLSurface eglSurface= EGL_NO_SURFACE;
 
+   printf("eglCreateWindowSurface: %d ");
+
    if ( gRealEGLCreateWindowSurface )
    {
       #ifdef EGL_PROTECTED_CONTENT_EXT
