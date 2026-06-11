@@ -48,7 +48,7 @@
 #include <drm/drm_fourcc.h>
 
 #include "westeros-gl.h"
-#include "westeros-gl-drm-version.h"
+
 
 #ifdef DRM_USE_VIDEO_FENCE
 #include "linux/dma-buf.h"
@@ -526,6 +526,10 @@ static void wstVideoServerSendStatus( VideoServerConnection *conn, long long dis
 static void wstVideoServerSendUnderflow( VideoServerConnection *conn, long long displayedFrameTime );
 static void wstVideoServerSendZoomMode( VideoServerConnection *conn, WstGLCtx *ctx, int zoomMode );
 static void wstVideoServerSendDebugLevel( VideoServerConnection *conn, int debugLevel );
+static void wstVideoServerSendAllocBufferResponse( VideoServerConnection *conn,
+                                                   int pitch0, int size0,
+                                                   int pitch1, int size1,
+                                                   int fd0,    int fd1 );
 static void wstTermCtx( WstGLCtx *ctx );
 static void wstUpdateCtx( WstGLCtx *ctx );
 static void wstSelectMode( WstGLCtx *ctx, int width, int height );
@@ -1796,6 +1800,64 @@ static void wstVideoServerSendDebugLevel( VideoServerConnection *conn, int debug
    pthread_mutex_unlock( &conn->mutex );
 }
 
+static void wstVideoServerSendAllocBufferResponse( VideoServerConnection *conn,
+                                                   int pitch0, int size0,
+                                                   int pitch1, int size1,
+                                                   int fd0,    int fd1 )
+{
+   struct msghdr  msg;
+   struct iovec   iov[1];
+   unsigned char  mbody[4 + 4*4];          /* 4-byte header + 4 x uint32 body */
+   char           cmbuf[CMSG_SPACE(2 * sizeof(int))];
+   struct cmsghdr *cmsg;
+   int            len, sentLen;
+
+   pthread_mutex_lock( &conn->mutex );
+
+   len= 0;
+   mbody[len++]= 'V';
+   mbody[len++]= 'S';
+   mbody[len++]= 17;                        /* body length: 'M' + 4 x uint32 */
+   mbody[len++]= 'M';                       /* id: Memory / alloc response   */
+   len += wstPutU32( &mbody[len], (uint32_t)pitch0 );
+   len += wstPutU32( &mbody[len], (uint32_t)size0  );
+   len += wstPutU32( &mbody[len], (uint32_t)pitch1 );
+   len += wstPutU32( &mbody[len], (uint32_t)size1  );
+
+   iov[0].iov_base= (char*)mbody;
+   iov[0].iov_len=  len;
+
+   /* Pass fd0 and fd1 as ancillary data (SCM_RIGHTS) */
+   memset( cmbuf, 0, sizeof(cmbuf) );
+   cmsg              = (struct cmsghdr*)cmbuf;
+   cmsg->cmsg_len   = CMSG_LEN(2 * sizeof(int));
+   cmsg->cmsg_level = SOL_SOCKET;
+   cmsg->cmsg_type  = SCM_RIGHTS;
+   ((int*)CMSG_DATA(cmsg))[0]= fd0;
+   ((int*)CMSG_DATA(cmsg))[1]= fd1;
+
+   msg.msg_name=       NULL;
+   msg.msg_namelen=    0;
+   msg.msg_iov=        iov;
+   msg.msg_iovlen=     1;
+   msg.msg_control=    cmbuf;
+   msg.msg_controllen= cmsg->cmsg_len;
+   msg.msg_flags=      0;
+
+   do
+   {
+      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+   }
+   while ( (sentLen < 0) && (errno == EINTR) );
+
+   if ( sentLen != len )
+   {
+      ERROR("wstVideoServerSendAllocBufferResponse: sendmsg failed: errno %d", errno);
+   }
+
+   pthread_mutex_unlock( &conn->mutex );
+}
+
 static int wstAdaptFd( int fdin )
 {
    int fdout= fdin;
@@ -2338,6 +2400,91 @@ static void *wstVideoServerConnectionThread( void *arg )
                            pthread_mutex_lock( &gMutex );
                            wstVideoFrameManagerEos( conn->videoPlane->vfm );
                            pthread_mutex_unlock( &gMutex );
+                        }
+                        break;
+                     case 'L':   /* aLloc buffer request from sink (container path) */
+                        if ( mlen >= 13 )  /* 'L' + width(4) + height(4) + buffIndex(4) */
+                        {
+                           ERROR("USHA: wstVideoServerConnectionThread: L message got alloc buffer request from sink");
+                           int reqWidth  = (int)wstGetU32( m+1 );
+                           int reqHeight = (int)wstGetU32( m+5 );
+                           int allocFd0  = -1, allocFd1 = -1;
+                           int pitch0    = 0,  size0    = 0;
+                           int pitch1    = 0,  size1    = 0;
+
+                           DEBUG("wstVideoServerConnectionThread: alloc buffer request: %dx%d",
+                                 reqWidth, reqHeight);
+
+                           /* ---- Allocate Y plane using host DRM fd (has DRM master) ---- */
+                           {
+                              struct drm_mode_create_dumb createDumb;
+                              struct drm_mode_destroy_dumb destroyDumb;
+                              memset( &createDumb, 0, sizeof(createDumb) );
+                              createDumb.width  = (uint32_t)((reqWidth + 63) & ~63);
+                              createDumb.height = (uint32_t)reqHeight;
+                              createDumb.bpp    = 8;
+                              rc= ioctl( gCtx->drmFd, DRM_IOCTL_MODE_CREATE_DUMB, &createDumb );
+                              if ( !rc )
+                              {
+                                 pitch0= (int)createDumb.pitch;
+                                 size0=  (int)createDumb.size;
+                                 rc= drmPrimeHandleToFD( gCtx->drmFd, createDumb.handle,
+                                                         DRM_CLOEXEC | DRM_RDWR, &allocFd0 );
+                                 /* Destroy GEM handle: DMA-BUF fd keeps a kernel reference */
+                                 memset( &destroyDumb, 0, sizeof(destroyDumb) );
+                                 destroyDumb.handle= createDumb.handle;
+                                 ioctl( gCtx->drmFd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroyDumb );
+                                 if ( rc )
+                                 {
+                                    ERROR("alloc buffer: drmPrimeHandleToFD Y failed: errno %d", errno);
+                                    allocFd0= -1;
+                                 }
+                              }
+                              else
+                              {
+                                 ERROR("alloc buffer: CREATE_DUMB Y failed: errno %d", errno);
+                              }
+                           }
+
+                           /* ---- Allocate UV plane ---- */
+                           if ( allocFd0 >= 0 )
+                           {
+                              struct drm_mode_create_dumb createDumb;
+                              struct drm_mode_destroy_dumb destroyDumb;
+                              memset( &createDumb, 0, sizeof(createDumb) );
+                              createDumb.width  = (uint32_t)((reqWidth + 63) & ~63);
+                              createDumb.height = (uint32_t)(reqHeight / 2);
+                              createDumb.bpp    = 8;
+                              rc= ioctl( gCtx->drmFd, DRM_IOCTL_MODE_CREATE_DUMB, &createDumb );
+                              if ( !rc )
+                              {
+                                 pitch1= (int)createDumb.pitch;
+                                 size1=  (int)createDumb.size;
+                                 rc= drmPrimeHandleToFD( gCtx->drmFd, createDumb.handle,
+                                                         DRM_CLOEXEC | DRM_RDWR, &allocFd1 );
+                                 memset( &destroyDumb, 0, sizeof(destroyDumb) );
+                                 destroyDumb.handle= createDumb.handle;
+                                 ioctl( gCtx->drmFd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroyDumb );
+                                 if ( rc )
+                                 {
+                                    ERROR("alloc buffer: drmPrimeHandleToFD UV failed: errno %d", errno);
+                                    allocFd1= -1;
+                                 }
+                              }
+                              else
+                              {
+                                 ERROR("alloc buffer: CREATE_DUMB UV failed: errno %d", errno);
+                              }
+                           }
+                           ERROR("USHA: wstVideoServerConnectionThread: M message response buffer response calling wstVideoServerSendAllocBufferResponse");
+                           /* Send 'M' response with fd0/fd1 via SCM_RIGHTS */
+                           wstVideoServerSendAllocBufferResponse( conn,
+                                                                  pitch0, size0,
+                                                                  pitch1, size1,
+                                                                  allocFd0, allocFd1 );
+                           /* westeros-gl's local copies can be closed; sink owns them now */
+                           if ( allocFd0 >= 0 ) { close( allocFd0 ); allocFd0= -1; }
+                           if ( allocFd1 >= 0 ) { close( allocFd1 ); allocFd1= -1; }
                         }
                         break;
                      default:
