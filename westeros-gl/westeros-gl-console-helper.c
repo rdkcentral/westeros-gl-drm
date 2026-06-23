@@ -58,7 +58,7 @@ typedef struct _WstDisplayClientConnection
 static void wstLog( int level, const char *fmt, ... );
 static void wstDestroyDisplayClientConnection( WstDisplayClientConnection *conn );
 
-static int g_activeLevel= 2;
+extern int g_activeLevel;
 
 static long long getCurrentTimeMillis(void)
 {
