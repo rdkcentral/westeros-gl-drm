@@ -563,7 +563,7 @@ static bool g_useRefreshLock= false;
 #ifdef USE_GENERIC_AVSYNC
 static bool g_useGenericAVSync= false;
 #endif
-static int g_activeLevel= 2;
+int g_activeLevel= 2;
 static bool g_frameDebug= false;
 
 #define WSTGL_CHECK_GRAPHICS_SIZE(w, h) \
