@@ -57,8 +57,23 @@ typedef struct _WstDisplayClientConnection
 
 static void wstLog( int level, const char *fmt, ... );
 static void wstDestroyDisplayClientConnection( WstDisplayClientConnection *conn );
+static void wstInitActiveLevel( void );
 
 static int g_activeLevel= 2;
+static bool g_activeLevelInitialized= false;
+
+static void wstInitActiveLevel( void )
+{
+   if ( !g_activeLevelInitialized )
+   {
+      const char *env= getenv( "WESTEROS_GL_DEBUG" );
+      if ( env )
+      {
+         g_activeLevel= atoi( env );
+      }
+      g_activeLevelInitialized= true;
+   }
+}
 
 static long long getCurrentTimeMillis(void)
 {
@@ -73,6 +88,8 @@ static long long getCurrentTimeMillis(void)
 
 static void wstLog( int level, const char *fmt, ... )
 {
+   wstInitActiveLevel();
+
    if ( level <= g_activeLevel )
    {
       va_list argptr;
