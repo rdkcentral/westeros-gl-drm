@@ -10,7 +10,7 @@ Changes:
 
 * Add CHANGELOG and Fixed logging issues
  
-Depedencies
+Dependencies
 ------------
 wayland >= 1.6.0
 libxkbcommon >= 0.8.3
