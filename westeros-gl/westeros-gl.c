@@ -1,5 +1,5 @@
 /*
- * If not stated otherwise in this file or this component's LICENSE file the
+ * If not stated otherwise in this file or this component's Licenses.txt file the
  * following copyright and licenses apply:
  *
  * Copyright 2016 RDK Management
@@ -37,6 +37,7 @@
 #include <linux/netlink.h>
 #include <time.h>
 #include <unistd.h>
+#include <grp.h>
 
 #define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
@@ -1393,53 +1394,44 @@ static void wstFreeVideoFrameResources( VideoFrame *f )
 {
    if ( f )
    {
-      if( gCtx )
+      if ( f->vf )
       {
-	      pthread_mutex_lock( &gCtx->mutex );
-      }
-      void *vf= f->vf; uint32_t fbId= f->fbId;
-      uint32_t h0= f->handle0, h1= f->handle1;
-      int fd0= f->fd0, fd1= f->fd1, fd2= f->fd2;
-      bool advanced= f->advanced;
-      f->vf= 0; f->fbId= 0; f->handle0= 0; f->handle1= 0;
-      f->fd0= -1; f->fd1= -1; f->fd2= -1;
-      if ( gCtx )
-      {
-	      pthread_mutex_unlock( &gCtx->mutex );
-      }
-
-      if ( vf )
-      {
-         FRAME("freeing sync vf %p advanced %d", vf, advanced);
+         FRAME("freeing sync vf %p advanced %d", f->vf, f->advanced);
          #ifdef WESTEROS_GL_AVSYNC
-         if ( advanced )
+         if ( f->advanced )
          {
-            FRAME(" advance pushed wait av-sync to free vf %p", vf);
+            FRAME(" advance pushed wait av-sync to free vf %p", f->vf);
          }
          else
          #endif
          {
-            free( vf );
+            free( f->vf );
          }
-         vf= 0;
+         f->vf= 0;
       }
-      if ( fbId )
+      if ( f->fbId )
       {
-         wstUpdateResources( WSTRES_FB_VIDEO, false, fbId, __LINE__);
-         drmModeRmFB( gCtx->drmFd, fbId );
-         wstClosePrimeFDHandles( gCtx, h0, h1, __LINE__ );
+         wstUpdateResources( WSTRES_FB_VIDEO, false, f->fbId, __LINE__);
+         drmModeRmFB( gCtx->drmFd, f->fbId );
+         f->fbId= 0;
+         wstClosePrimeFDHandles( gCtx, f->handle0, f->handle1, __LINE__ );
+         f->handle0= 0;
+         f->handle1= 0;
       }
-      if ( fd0 >= 0 )
+      if ( f->fd0 >= 0 )
       {
-         wstUpdateResources( WSTRES_FD_VIDEO, false, fd0, __LINE__);
-         close( fd0 );
-         if ( fd1 >= 0 )
+         wstUpdateResources( WSTRES_FD_VIDEO, false, f->fd0, __LINE__);
+         close( f->fd0 );
+         f->fd0= -1;
+         if ( f->fd1 >= 0 )
          {
-            close( fd1 );
+            close( f->fd1 );
+            f->fd1= -1;
          }
-         if ( fd2 >= 0 )
+         if ( f->fd2 >= 0 )
          {
-            close( fd2 );
+            close( f->fd2 );
+            f->fd2= -1;
          }
       }
    }
@@ -2372,67 +2364,59 @@ exit:
       {
          wstSelectRate( gCtx, gCtx->defaultRate, 1 );
       }
+
       conn->videoPlane->inUse= false;
       if ( !conn->videoPlane->keepLastFrame )
       {
          drmModePlane *plane= conn->videoPlane->plane;
-	 int drmFd= gCtx->drmFd;
-	 uint32_t hDisplay= gCtx->modeInfo->hdisplay;
-	 uint32_t vDisplay= gCtx->modeInfo->vdisplay;
-	 long long delay= 16667*2LL;
-
          if ( gCtx->enc )
          {
             plane->crtc_id= gCtx->enc->crtc_id;
          }
          DEBUG("wstVideoServerConnectionThread: drmModeSetPlane plane_id %d crtc_id %d", plane->plane_id, plane->crtc_id);
-	 if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
-	 {
-		 delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
-	 }
-	 pthread_mutex_unlock( &gCtx->mutex );
-	 pthread_mutex_unlock( &gMutex );
-
-         rc= drmModeSetPlane( drmFd,
+         rc= drmModeSetPlane( gCtx->drmFd,
                               plane->plane_id,
                               plane->crtc_id,
                               0, // fbid
                               0, // flags
                               0, // plane x
                               0, // plane y
-                              hDisplay,
-                              vDisplay,
+                              gCtx->modeInfo->hdisplay,
+                              gCtx->modeInfo->vdisplay,
                               0, // fb rect x
                               0, // fb rect y
-                              hDisplay<<16,
-                              vDisplay<<16 );
+                              gCtx->modeInfo->hdisplay<<16,
+                              gCtx->modeInfo->hdisplay<<16 );
 
+         {
+            long long delay= 16667*2LL;
+            if ( gCtx->modeInfo && gCtx->modeInfo->vrefresh )
+            {
+               delay= (1000000LL+(gCtx->modeInfo->vrefresh/2))/gCtx->modeInfo->vrefresh;
+            }
             DEBUG("wstVideoServerConnectionThread: delay for %lld us", delay);
+            pthread_mutex_unlock( &gCtx->mutex );
+            pthread_mutex_unlock( &gMutex );
             usleep( delay );
+            pthread_mutex_lock( &gMutex );
+            pthread_mutex_lock( &gCtx->mutex );
+         }
       }
-      else
-      {
-	      pthread_mutex_unlock( &gCtx->mutex );
-	      pthread_mutex_unlock( &gMutex );
-      }
-
 
       wstVideoServerFreeBuffers( conn, true );
-      pthread_mutex_lock( &gMutex );
-      pthread_mutex_lock( &gCtx->mutex );
 
-      VideoFrameManager *savedVfm= conn->videoPlane->vfm;
-      conn->videoPlane->vfm= 0;
       pthread_mutex_unlock( &gCtx->mutex );
+
+      if ( conn->videoPlane->vfm )
+      {
+         wstDestroyVideoFrameManager( conn->videoPlane->vfm );
+         conn->videoPlane->vfm= 0;
+      }
 
       wstOverlayFree( &gCtx->overlayPlanes, conn->videoPlane );
       conn->videoPlane= 0;
 
       pthread_mutex_unlock( &gMutex );
-      if(savedVfm)
-      {
-	      wstDestroyVideoFrameManager( savedVfm );
-      }
    }
 
    conn->threadStarted= false;
@@ -2636,6 +2620,33 @@ exit:
    return 0;
 }
 
+static void skySetSocketGroupAccess( const char *socketPath, const char *groupName )
+{
+   struct group grp, *result = NULL;
+   char groupBuf[512];
+   gid_t gid = -1;
+
+   if (getgrnam_r(groupName, &grp, groupBuf, sizeof(groupBuf), &result) < 0)
+   {
+      ERROR("skySetSocketPermissions: failed to get gid for group '%s': errno %d",
+            groupName, errno);
+   }
+   else
+   {
+      gid = result->gr_gid;
+
+      if ( chmod(socketPath, 0775) < 0 )
+      {
+         ERROR("wstInitServiceServer: Error: failed to chmod '%s' to 0775: errno %d", socketPath, errno );
+      }
+
+      if ( chown(socketPath, -1, gid) < 0 )
+      {
+         ERROR("wstInitServiceServer: Error: failed to change gid of '%s' to %d: errno %d", socketPath, gid, errno );
+      }
+   }
+}
+
 static bool wstInitServiceServer( const char *name, WstServerCtx **newServer )
 {
    bool result= false;
@@ -2713,6 +2724,9 @@ static bool wstInitServiceServer( const char *name, WstServerCtx **newServer )
       ERROR("wstInitServiceServer: Error: bind failed for socket: errno %d", errno );
       goto exit;
    }
+
+   /* [Sky] change the group id of the socket to 'video' as well and set full group access permissions */
+   skySetSocketGroupAccess(server->addr.sun_path, "video");
 
    rc= listen(server->socketFd, 1);
    if ( rc < 0 )
@@ -3382,6 +3396,71 @@ static void wstDisplayServerProcessMessage( DisplayServerConnection *conn, int m
                   sprintf( conn->response, "%d: %s", -1, "set missing argument(s)" );
                }
                break;
+            }
+            //DRM AUTH check
+            else if ( (tlen == 7) && !strncmp( tok, "drmauth", tlen) )
+            {
+
+
+               /*
+               * DRM client authentication request from westeros-sink-soc.c
+               * Received via XDG_RUNTIME_DIR/display Unix socket
+               * (conn->name="display" confirmed westeros-gl-console-helper.c:98)
+               * Format: "drmauth <magic_number>"
+               * gCtx->drmFd = DRM master fd (confirmed lines 418,2056,2531)
+               * gCtx = global (same pattern as lines 3363,3397,3421)
+               */
+              tok= strtok_r( 0, " ", &ctx );
+               if ( tok )
+               {
+
+                 struct drm_auth auth;
+                 int authRc= -1;
+                 memset( &auth, 0, sizeof(auth) );
+                 auth.magic= (drm_magic_t)strtoul( tok, NULL, 10 );
+                 DEBUG("drmauth: received magic %u", (unsigned int)auth.magic);
+                 pthread_mutex_lock( &gMutex );
+                 if ( gCtx && (gCtx->drmFd >= 0) )
+                 {
+                    /*
+                     * DRM_IOCTL_AUTH_MAGIC:
+                     *   - called on DRM master fd (gCtx->drmFd)
+                     *   - authenticates client magic token
+                     *   - allows client to use DRM after this
+                     *   - same as drmAuthMagic() libdrm wrapper
+                     *     but direct ioctl consistent with line 1311
+                     */
+                     DEBUG("Inside DRM_IOCTL_AUTH_MAGIC condition check");
+                     authRc= ioctl( gCtx->drmFd,
+                                   DRM_IOCTL_AUTH_MAGIC,
+                                   &auth );
+                    if ( authRc != 0 )
+                    {
+                       ERROR("drmauth: drmAuthMagic failed magic %u "
+                             "drmFd %d errno %d",
+                             (unsigned int)auth.magic, gCtx->drmFd, errno);
+                    }
+                    else
+                    {
+                       DEBUG("drmauth: magic %u authenticated on drmFd %d",
+                             (unsigned int)auth.magic, gCtx->drmFd);
+                    }
+                 }
+                 else
+                 {
+                    ERROR("drmauth: gCtx->drmFd not valid cannot authenticate");
+                 }
+                 pthread_mutex_unlock( &gMutex );
+                 sprintf( conn->response, "%d: drmauth %u",
+                          authRc, (unsigned int)auth.magic );
+               }
+               else
+               {
+                 sprintf( conn->response, "%d: %s", -1,
+                          "drmauth missing argument(s)" );
+               }
+              break;
+
             }
             else
             {
@@ -5356,6 +5435,7 @@ static void wstTermCtx( WstGLCtx *ctx )
          ctx->drmFd= -1;
       }
       pthread_mutex_destroy( &ctx->mutex );
+      free( ctx );
 
       pthread_mutex_unlock( &gMutex );
       while( gSizeListeners )
@@ -5371,7 +5451,6 @@ static void wstTermCtx( WstGLCtx *ctx )
          gResources= 0;
       }
       pthread_mutex_unlock( &resMutex );
-      free( ctx );
    }
 }
 
@@ -7504,6 +7583,7 @@ EGLAPI EGLBoolean eglSwapBuffers( EGLDisplay dpy, EGLSurface surface )
 {
    EGLBoolean result= EGL_FALSE;
    NativeWindowItem *nwIter;
+
    if ( gRealEGLSwapBuffers )
    {
       #ifdef DRM_USE_NATIVE_FENCE
