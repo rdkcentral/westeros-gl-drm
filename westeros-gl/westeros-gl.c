@@ -1796,6 +1796,49 @@ static void wstVideoServerSendDebugLevel( VideoServerConnection *conn, int debug
    pthread_mutex_unlock( &conn->mutex );
 }
 
+static void wstVideoServerSendAuthResponse( VideoServerConnection *conn, int status, int authErr )
+{
+   struct msghdr msg;
+   struct iovec iov[1];
+   unsigned char mbody[4+4+4];
+   int len;
+   int sentLen;
+
+   pthread_mutex_lock( &conn->mutex );
+
+   msg.msg_name= NULL;
+   msg.msg_namelen= 0;
+   msg.msg_iov= iov;
+   msg.msg_iovlen= 1;
+   msg.msg_control= 0;
+   msg.msg_controllen= 0;
+   msg.msg_flags= 0;
+
+   len= 0;
+   mbody[len++]= 'V';
+   mbody[len++]= 'S';
+   mbody[len++]= 9;
+   mbody[len++]= 'Q';
+   len += wstPutU32( &mbody[len], status );
+   len += wstPutU32( &mbody[len], authErr );
+
+   iov[0].iov_base= (char*)mbody;
+   iov[0].iov_len= len;
+
+   do
+   {
+      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+   }
+   while ( (sentLen < 0) && (errno == EINTR));
+
+   if ( sentLen == len )
+   {
+      DEBUG("sent drm auth response status %d errno %d", status, authErr);
+   }
+
+   pthread_mutex_unlock( &conn->mutex );
+}
+
 static int wstAdaptFd( int fdin )
 {
    int fdout= fdin;
@@ -2139,6 +2182,41 @@ static void *wstVideoServerConnectionThread( void *arg )
 
                               conn->videoPlane->conn= conn;
                            }
+                        }
+                        break;
+                     case 'O':
+                        {
+                           struct drm_auth auth;
+                           uint32_t magic= 0;
+                           int authErr= EINVAL;
+                           int authStatus= 1;
+
+                           if ( mlen >= 5 )
+                           {
+                              magic= wstGetU32( m+1 );
+                              DEBUG("Magic number: 0x%08x (%u)", magic, magic);  // or DEBUG(...) for less noisy logs
+                              memset( &auth, 0, sizeof(auth) );
+                              auth.magic= magic;
+                              if ( gCtx && (gCtx->drmFd >= 0) )
+                              {
+                                 rc= ioctl( gCtx->drmFd, DRM_IOCTL_AUTH_MAGIC, &auth );
+                                 if ( rc == 0 )
+                                 {
+                                    authStatus= 0;
+                                    authErr= 0;
+                                 }
+                                 else
+                                 {
+                                    authErr= errno;
+                                 }
+                              }
+                              else
+                              {
+                                 authErr= ENODEV;
+                              }
+                           }
+                           DEBUG("got drm auth request magic %u status %d errno %d", magic, authStatus, authErr);
+                           wstVideoServerSendAuthResponse( conn, authStatus, authErr );
                         }
                         break;
                      case 'H':
