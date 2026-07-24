@@ -2759,7 +2759,7 @@ static bool wstInitServiceServer( const char *name, WstServerCtx **newServer )
    strcat( server->lock, ".lock" );
 
    server->lockFd= open(server->lock,
-                        O_CREAT|O_CLOEXEC,
+                        O_CREAT|O_CLOEXEC|O_NOFOLLOW,
                         S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP );
    if ( server->lockFd < 0 )
    {
