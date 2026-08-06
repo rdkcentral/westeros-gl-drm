@@ -2,6 +2,22 @@
 
 All notable changes are collected from docs/relnotes in descending release order.
 
+## 2.1.3 - 2026-08-03
+Tag: 2.1.3
+
+### Changes
+- Fix WesterosSink crash while playing VP8 content
+- Use O_NOFOLLOW for lock file open
+- security fixes from Broadcom
+
+### Dependencies
+- wayland >= 1.6.0
+- libxkbcommon >= 0.8.3
+- xkeyboard-config >= 2.18
+- gstreamer >= 1.10.4
+- EGL >= 1.4
+- GLES >= 2.0
+
 ## 2.1.2 - 2026-06-23
 Tag: 2.1.2
 
