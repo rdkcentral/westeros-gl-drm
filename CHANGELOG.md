@@ -2,6 +2,12 @@
 
 All notable changes are collected from docs/relnotes in descending release order.
 
+## 2.1.4 - 2026-09-01
+Tag: 2.1.4
+
+### Changes
+- wpeframework crash happens when rebooted the device without HDMI
+
 ## 2.1.3 - 2026-08-03
 Tag: 2.1.3
 
