@@ -24,6 +24,7 @@ SUBDIRS =
 AM_CFLAGS = 
 
 AM_LDFLAGS = 
+WESTEROS_LIBRARY_VERSION_FLAGS = -version-number $(WESTEROS_LT_VERSION)
 
 if HAVE_EGL
 AM_CFLAGS += ${EGL_CFLAGS}
@@ -49,6 +50,7 @@ libwesteros_gl_la_CFLAGS= $(AM_CFLAGS) $(GBM_CFLAGS) $(LIBDRM_CFLAGS) -D_GNU_SOU
 
 libwesteros_gl_la_LDFLAGS= \
    $(AM_LDFLAGS) \
+   $(WESTEROS_LIBRARY_VERSION_FLAGS) \
    $(LIBDRM_LIBS) \
    $(GBM_LIBS)
 
@@ -59,7 +61,7 @@ libwesteros_gl_console_helper_la_include_HEADERS = westeros-gl/westeros-gl-conso
 libwesteros_gl_console_helper_la_includedir = $(includedir)
 libwesteros_gl_console_helper_la_CFLAGS= $(AM_CFLAGS) -D_GNU_SOURCE
 
-libwesteros_gl_console_helper_la_LDFLAGS= $(AM_LDFLAGS)
+libwesteros_gl_console_helper_la_LDFLAGS= $(AM_LDFLAGS) $(WESTEROS_LIBRARY_VERSION_FLAGS)
 
 
 westeros_gl_console_SOURCES = westeros-gl/westeros-gl-console.c
