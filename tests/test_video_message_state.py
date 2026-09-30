@@ -4,14 +4,16 @@ import re
 import unittest
 
 
-SOURCE = (Path(__file__).parents[1] / "westeros-gl" / "westeros-gl.c").read_text()
+ROOT = Path(__file__).parents[1]
+SOURCE = (ROOT / "westeros-gl" / "westeros-gl.c").read_text()
+STATE = (ROOT / "westeros-gl" / "video-message-state.h").read_text()
 
 
 class VideoMessageStateTests(unittest.TestCase):
     def test_plane_dependent_messages_are_classified(self):
         helper = re.search(
-            r"static bool wstVideoServerMessageNeedsVideoPlane\( int id \)\s*\{(.*?)\n\}",
-            SOURCE,
+            r"static inline bool wstVideoServerDispatchMessage\(.*?\)\s*\{(.*?)\n\}",
+            STATE,
             re.S,
         )
         self.assertIsNotNone(helper)
@@ -32,7 +34,7 @@ class VideoMessageStateTests(unittest.TestCase):
         self.assertIn("return;", body[guard:dereference])
 
     def test_state_guard_precedes_video_dispatch(self):
-        guard = SOURCE.index("wstVideoServerMessageNeedsVideoPlane( id ) && !conn->videoPlane")
+        guard = SOURCE.index("!wstVideoServerDispatchMessage( id")
         dispatch = SOURCE.index("switch( id )", guard)
         first_dereference = SOURCE.index("conn->videoPlane->frameCount", guard)
         self.assertLess(guard, dispatch)

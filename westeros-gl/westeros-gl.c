@@ -38,6 +38,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "video-message-state.h"
+
 #define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -1860,26 +1862,6 @@ static int wstAdaptFd( int fdin )
    return fdout;
 }
 
-static bool wstVideoServerMessageNeedsVideoPlane( int id )
-{
-   switch( id )
-   {
-      case 'F':
-      case 'H':
-      case 'S':
-      case 'P':
-      case 'I':
-      case 'A':
-      case 'W':
-      case 'R':
-      case 'K':
-      case 'E':
-         return true;
-      default:
-         return false;
-   }
-}
-
 static void *wstVideoServerConnectionThread( void *arg )
 {
    VideoServerConnection *conn= (VideoServerConnection*)arg;
@@ -2025,7 +2007,12 @@ static void *wstVideoServerConnectionThread( void *arg )
                   {
                      wstDumpMessage( mbody, len );
                   }
-                  if ( wstVideoServerMessageNeedsVideoPlane( id ) && !conn->videoPlane )
+                  if ( !wstVideoServerDispatchMessage( id,
+                                                       conn->videoPlane,
+                                                       conn->videoPlane && conn->videoPlane->plane,
+                                                       conn->videoPlane && conn->videoPlane->vfm,
+                                                       0,
+                                                       0 ) )
                   {
                      ERROR("video message %c received before video plane initialization", id);
                      if ( fd0 >= 0 )
