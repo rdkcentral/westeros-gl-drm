@@ -66,6 +66,15 @@ westeros_gl_console_SOURCES = westeros-gl/westeros-gl-console.c
 westeros_gl_console_CFLAGS = $(AM_CFLAGS) -D_GNU_SOURCE
 westeros_gl_console_LDFLAGS = $(AM_LDFLAGS) -lwesteros_gl_console_helper
 
+noinst_HEADERS = westeros-gl/offload-overflow.h
+EXTRA_DIST = tests/test_offload_overflow.c tests/test_offload_overflow.py
+
+check-local:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(srcdir)/tests/test_offload_overflow.c -o test-offload-overflow
+	./test-offload-overflow
+	rm -f test-offload-overflow
+	python3 $(srcdir)/tests/test_offload_overflow.py
+
 pkgconfigdir = $(libdir)/pkgconfig
    
 distcleancheck_listfiles = *-libtool
