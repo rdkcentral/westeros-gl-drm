@@ -38,6 +38,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "video-message-state.h"
+
 #define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -1475,6 +1477,12 @@ static void wstVideoServerFlush( VideoServerConnection *conn )
 
    DEBUG("wstVideoServerFlush: enter");
 
+   if ( !conn->videoPlane )
+   {
+      ERROR("wstVideoServerFlush: no video plane");
+      return;
+   }
+
    wstOffloadFlushConn( conn );
 
    if ( conn->videoPlane->vfm )
@@ -1998,6 +2006,31 @@ static void *wstVideoServerConnectionThread( void *arg )
                   if ( g_activeLevel >= 7 )
                   {
                      wstDumpMessage( mbody, len );
+                  }
+                  if ( !wstVideoServerDispatchMessage( id,
+                                                       conn->videoPlane,
+                                                       conn->videoPlane && conn->videoPlane->plane,
+                                                       conn->videoPlane && conn->videoPlane->vfm,
+                                                       0,
+                                                       0 ) )
+                  {
+                     ERROR("video message %c received before video plane initialization", id);
+                     if ( fd0 >= 0 )
+                     {
+                        close( fd0 );
+                        fd0= -1;
+                     }
+                     if ( fd1 >= 0 )
+                     {
+                        close( fd1 );
+                        fd1= -1;
+                     }
+                     if ( fd2 >= 0 )
+                     {
+                        close( fd2 );
+                        fd2= -1;
+                     }
+                     continue;
                   }
                   switch( id )
                   {
