@@ -1475,6 +1475,12 @@ static void wstVideoServerFlush( VideoServerConnection *conn )
 
    DEBUG("wstVideoServerFlush: enter");
 
+   if ( !conn->videoPlane )
+   {
+      ERROR("wstVideoServerFlush: no video plane");
+      return;
+   }
+
    wstOffloadFlushConn( conn );
 
    if ( conn->videoPlane->vfm )
@@ -1854,6 +1860,26 @@ static int wstAdaptFd( int fdin )
    return fdout;
 }
 
+static bool wstVideoServerMessageNeedsVideoPlane( int id )
+{
+   switch( id )
+   {
+      case 'F':
+      case 'H':
+      case 'S':
+      case 'P':
+      case 'I':
+      case 'A':
+      case 'W':
+      case 'R':
+      case 'K':
+      case 'E':
+         return true;
+      default:
+         return false;
+   }
+}
+
 static void *wstVideoServerConnectionThread( void *arg )
 {
    VideoServerConnection *conn= (VideoServerConnection*)arg;
@@ -1998,6 +2024,26 @@ static void *wstVideoServerConnectionThread( void *arg )
                   if ( g_activeLevel >= 7 )
                   {
                      wstDumpMessage( mbody, len );
+                  }
+                  if ( wstVideoServerMessageNeedsVideoPlane( id ) && !conn->videoPlane )
+                  {
+                     ERROR("video message %c received before video plane initialization", id);
+                     if ( fd0 >= 0 )
+                     {
+                        close( fd0 );
+                        fd0= -1;
+                     }
+                     if ( fd1 >= 0 )
+                     {
+                        close( fd1 );
+                        fd1= -1;
+                     }
+                     if ( fd2 >= 0 )
+                     {
+                        close( fd2 );
+                        fd2= -1;
+                     }
+                     continue;
                   }
                   switch( id )
                   {
