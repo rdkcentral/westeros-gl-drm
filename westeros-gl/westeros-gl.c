@@ -3953,6 +3953,7 @@ static void wstVideoFrameManagerUpdateRect( VideoFrameManager *vfm, int rectX, i
 
 static void wstVideoFrameManagerPushFrame( VideoFrameManager *vfm, VideoFrame *f )
 {
+   pthread_mutex_lock( &vfm->mutex);
    if ( vfm->queueSize+1 > vfm->queueCapacity )
    {
       int orgCapacity= vfm->queueCapacity;
@@ -3962,7 +3963,6 @@ static void wstVideoFrameManagerPushFrame( VideoFrameManager *vfm, VideoFrame *f
       {
          int i;
          VideoFrame *toFree= vfm->queue;
-         pthread_mutex_lock( &vfm->mutex);
          memcpy( newQueue, vfm->queue, vfm->queueSize*sizeof(VideoFrame) );
          for( i= vfm->queueSize; i < newCapacity; ++i )
          {
@@ -3973,7 +3973,6 @@ static void wstVideoFrameManagerPushFrame( VideoFrameManager *vfm, VideoFrame *f
          }
          vfm->queue= newQueue;
          vfm->queueCapacity= newCapacity;
-         pthread_mutex_unlock( &vfm->mutex);
          FRAME("vfm expand queue capacity from %d to %d", orgCapacity, newCapacity);
          free( toFree );
       }
@@ -3981,13 +3980,12 @@ static void wstVideoFrameManagerPushFrame( VideoFrameManager *vfm, VideoFrame *f
       {
          ERROR("vfm queue full: no memory to expand, dropping frame");
          wstFreeVideoFrameResources( f );
+         pthread_mutex_unlock( &vfm->mutex);
          return;
       }
    }
 
    FRAME("vfm push frame %d bufferId %d", f->frameNumber, f->bufferId);
-
-   pthread_mutex_lock( &vfm->mutex);
    #ifdef WESTEROS_GL_AVSYNC
    if ( !vfm->syncInit && (vfm->conn->syncType != SYNC_IMMEDIATE) )
    {
@@ -4103,9 +4101,9 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
          goto done;
       }
       #endif
+      pthread_mutex_lock( &vfm->mutex);
       if ( vfm->conn->syncType == SYNC_IMMEDIATE )
       {
-         pthread_mutex_lock( &vfm->mutex);
          if ( vfm->queueSize > 0 )
          {
             f= &vfm->queue[0];
@@ -4126,7 +4124,6 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
                --vfm->queueSize;
             }
          }
-         pthread_mutex_unlock( &vfm->mutex);
       }
       else
       if ( (vfm->queueSize && (vfm->flipTimeBase || (vfm->bufferIdCurrent != -1))) || (vfm->queueSize > 2) || vfm->frameAdvance )
@@ -4173,13 +4170,11 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
                      XSTAT_INC_PTS_LATE_DROP_METRIC(vfm->conn->videoResourceId);
                      #endif
                   }
-                  pthread_mutex_lock( &vfm->mutex);
                   if ( vfm->queueSize > i+1 )
                   {
                      memmove( &vfm->queue[i], &vfm->queue[i+1], (vfm->queueSize-(i+1))*sizeof(VideoFrame) );
                   }
                   --vfm->queueSize;
-                  pthread_mutex_unlock( &vfm->mutex);
                   if ( vfm->conn->videoPlane->videoFrame[FRAME_CURR].bufferId != -1)
                   {
                      f= &vfm->conn->videoPlane->videoFrame[FRAME_CURR];
@@ -4193,11 +4188,9 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
                }
                if ( i > 0 )
                {
-                  pthread_mutex_lock( &vfm->mutex);
                   memmove( &vfm->queue[0], &vfm->queue[1], (vfm->queueSize-1)*sizeof(VideoFrame) );
                   --vfm->queueSize;
                   f= &vfm->queue[0];
-                  pthread_mutex_unlock( &vfm->mutex);
                   i= 0;
                }
                else
@@ -4222,6 +4215,7 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
             ++i;
          }
       }
+      pthread_mutex_unlock( &vfm->mutex);
    }
 done:
    if ( !f && !vfm->paused && (vfm->conn->syncType != SYNC_IMMEDIATE) &&
