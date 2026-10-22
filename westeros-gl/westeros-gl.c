@@ -3774,8 +3774,11 @@ static void wstDestroyVideoFrameManager( VideoFrameManager *vfm )
          {
             if ( vfm->bufferIdCurrent != vfm->queue[i].bufferId )
             {
+               wstOffloadSendBufferRelease( vfm->conn, &vfm->queue[i] );
+            }
+            else
+            {
                wstFreeVideoFrameResources( &vfm->queue[i] );
-               wstVideoServerSendBufferRelease( vfm->conn, vfm->queue[i].bufferId );
             }
          }
          vfm->queueSize= 0;
