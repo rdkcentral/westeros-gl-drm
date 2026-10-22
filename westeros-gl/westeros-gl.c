@@ -38,6 +38,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "display-response.h"
+
 #define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -2942,12 +2944,13 @@ static void wstDisplayServerSendResponse( DisplayServerConnection *conn )
    msg.msg_controllen= 0;
    msg.msg_flags= 0;
 
-   len= 0;
-   mbody[len++]= 'D';
-   mbody[len++]= 'S';
-   mbody[len++]= conn->responseLen+1;
-   strncpy( &mbody[len], conn->response, conn->responseLen+1 );
-   len += (conn->responseLen+1);
+   len= wstPackDisplayResponse( mbody, sizeof(mbody), conn->response, sizeof(conn->response) );
+   if ( !len )
+   {
+      ERROR("Unable to pack response");
+      pthread_mutex_unlock( &conn->mutex );
+      return;
+   }
 
    iov[0].iov_base= (char*)mbody;
    iov[0].iov_len= len;
