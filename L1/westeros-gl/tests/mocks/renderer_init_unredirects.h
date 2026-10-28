@@ -1,0 +1,20 @@
+/* Intentionally no include guard: pair with the production-source include. */
+#undef calloc
+#undef drmSetMaster
+#undef drmGetVersion
+#undef drmFreeVersion
+#undef drmModeGetEncoder
+#undef drmModeGetCrtc
+#undef drmModeGetPlaneResources
+#undef drmModeFreePlaneResources
+#undef drmModeGetPlane
+#undef gbm_create_device
+#undef pthread_create
+#undef pthread_attr_init
+#undef pthread_attr_setdetachstate
+#undef flock
+#undef socket
+#undef bind
+#undef listen
+#undef shutdown
+#undef unlink

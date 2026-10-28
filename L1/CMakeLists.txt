@@ -33,6 +33,10 @@ target_link_libraries(test_westeros_gl_drm_l1 PRIVATE GTest::gtest_main Threads:
 # helpers without modifying production sources or compiling them as C++.
 add_executable(test_westeros_gl_renderer_l1
     "${WESTEROS_GL_DRM_TEST_ROOT}/tests/L1/westeros_gl_renderer_test.cpp"
+    "${WESTEROS_GL_DRM_TEST_ROOT}/tests/L1/renderer_frame_test.cpp"
+    "${WESTEROS_GL_DRM_TEST_ROOT}/tests/L1/renderer_protocol_test.cpp"
+    "${WESTEROS_GL_DRM_TEST_ROOT}/tests/L1/renderer_drm_test.cpp"
+    "${WESTEROS_GL_DRM_TEST_ROOT}/tests/L1/renderer_init_test.cpp"
     "${WESTEROS_GL_DRM_TEST_ROOT}/tests/mocks/renderer_test_support.c")
 set_target_properties(test_westeros_gl_renderer_l1 PROPERTIES
     C_STANDARD 99 C_STANDARD_REQUIRED YES C_EXTENSIONS YES)
