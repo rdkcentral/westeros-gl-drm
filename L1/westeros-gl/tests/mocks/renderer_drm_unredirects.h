@@ -1,0 +1,27 @@
+/* Intentionally no include guard: symmetrical with the production include. */
+#undef drmModeObjectGetProperties
+#undef drmModeGetProperty
+#undef drmModeFreeObjectProperties
+#undef drmModeFreeProperty
+#undef drmModeAtomicAlloc
+#undef drmModeAtomicFree
+#undef drmModeAtomicAddProperty
+#undef drmModeAtomicCommit
+#undef drmModeCreatePropertyBlob
+#undef drmModeDestroyPropertyBlob
+#undef drmModeAddFB
+#undef drmModeRmFB
+#undef drmModeSetCrtc
+#undef drmModeSetPlane
+#undef drmModePageFlip
+#undef drmHandleEvent
+#undef select
+#undef ioctl
+#undef gbm_surface_lock_front_buffer
+#undef gbm_surface_release_buffer
+#undef gbm_bo_get_handle
+#undef gbm_bo_get_stride
+#undef drmModeFreePlane
+#undef drmModeFreeCrtc
+#undef drmModeFreeEncoder
+#undef gbm_device_destroy
