@@ -66,6 +66,14 @@ westeros_gl_console_SOURCES = westeros-gl/westeros-gl-console.c
 westeros_gl_console_CFLAGS = $(AM_CFLAGS) -D_GNU_SOURCE
 westeros_gl_console_LDFLAGS = $(AM_LDFLAGS) -lwesteros_gl_console_helper
 
+noinst_HEADERS = westeros-gl/display-response.h
+EXTRA_DIST = tests/test_display_response.c
+
+check-local:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(srcdir)/tests/test_display_response.c -o test-display-response
+	./test-display-response
+	rm -f test-display-response
+
 pkgconfigdir = $(libdir)/pkgconfig
    
 distcleancheck_listfiles = *-libtool
