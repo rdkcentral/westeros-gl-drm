@@ -66,6 +66,15 @@ westeros_gl_console_SOURCES = westeros-gl/westeros-gl-console.c
 westeros_gl_console_CFLAGS = $(AM_CFLAGS) -D_GNU_SOURCE
 westeros_gl_console_LDFLAGS = $(AM_LDFLAGS) -lwesteros_gl_console_helper
 
+noinst_HEADERS = westeros-gl/video-message-state.h
+EXTRA_DIST = tests/test_video_message_state.c tests/test_video_message_state.py
+
+check-local:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(srcdir)/tests/test_video_message_state.c -o test-video-message-state
+	./test-video-message-state
+	rm -f test-video-message-state
+	python3 $(srcdir)/tests/test_video_message_state.py
+
 pkgconfigdir = $(libdir)/pkgconfig
    
 distcleancheck_listfiles = *-libtool
