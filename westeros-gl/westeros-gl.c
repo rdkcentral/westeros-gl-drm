@@ -38,6 +38,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "offload-overflow.h"
+
 #define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -6217,6 +6219,36 @@ static void wstOffloadMsgExecute(uint32_t msgType, void *param_pv, long long par
    }
 }
 
+static void wstOffloadMsgDiscard(uint32_t msgType, int param_int, void *param_pv, void *param_pv2)
+{
+   switch ( msgType )
+   {
+      case WST_OLM_NONE:
+      case WST_OLM_STATUS_UPDATE:
+      case WST_OLM_SENT_UNDERFLOW:
+         break;
+      case WST_OLM_BUFF_RELEASE:
+         {
+            WstOffloadVideoFrameResources *f= (WstOffloadVideoFrameResources *)param_pv2;
+            if ( f )
+            {
+               wstOffloadFreeVideoFrameResources(f);
+               free(f);
+            }
+         }
+         break;
+      case WST_OLM_FD_HANDLE_CLOSE:
+         close(param_int);
+         break;
+      case WST_OLM_FREE_VF_BUFF:
+         free(param_pv);
+         break;
+      default:
+         ERROR("unknown discarded msg type %d", msgType);
+         break;
+   }
+}
+
 static void wstOffloadFlushConn( VideoServerConnection *conn )
 {
    WstOffloadMsgQ *pMsgQ;
@@ -6311,7 +6343,7 @@ static void wstOffloadMsgPush(uint32_t type, void *param_pv, long long param_ll,
          ERROR("offload Message queue nospace please enlarge OFFLOAD_QUEUE_CAPACITY %d fullness %d count %d", OFFLOAD_QUEUE_CAPACITY, fullness, fullCount);
       }
       pthread_mutex_unlock( &pMsgQ->mutex);
-      wstOffloadMsgExecute( type, param_pv, param_ll, param_int, param_pv2 );
+      wstOffloadHandleOverflow( fullness, OFFLOAD_QUEUE_CAPACITY, type, param_int, param_pv, param_pv2, wstOffloadMsgDiscard );
       return;
    }
    pCur= &pMsgQ->msg[pMsgQ->writeIdx];
