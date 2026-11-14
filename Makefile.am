@@ -66,6 +66,13 @@ westeros_gl_console_SOURCES = westeros-gl/westeros-gl-console.c
 westeros_gl_console_CFLAGS = $(AM_CFLAGS) -D_GNU_SOURCE
 westeros_gl_console_LDFLAGS = $(AM_LDFLAGS) -lwesteros_gl_console_helper
 
+EXTRA_DIST = tests/test_scmrights_fd_cleanup.c
+
+check-local:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(srcdir)/tests/test_scmrights_fd_cleanup.c -o test-scmrights-fd-cleanup
+	./test-scmrights-fd-cleanup
+	rm -f test-scmrights-fd-cleanup
+
 pkgconfigdir = $(libdir)/pkgconfig
    
 distcleancheck_listfiles = *-libtool
