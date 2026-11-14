@@ -4004,7 +4004,7 @@ static void wstVideoFrameManagerPushFrame( VideoFrameManager *vfm, VideoFrame *f
    pthread_mutex_unlock( &vfm->mutex);
 }
 
-#define EXPIRELIMIT (83000)
+#define EXPIRELIMIT (166000)
 #define US_TO_MS( t ) (((t) + 500LL) / 1000LL)
 static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
 {
@@ -4036,12 +4036,13 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
             vfm->flipTimeCurrent= vfm->vblankTime;
             vfm->flushed= false;
          }
+	  ERROR("debugging for RDKEVD-8289:vfm->vblankTime: %lld, vfm->flipTimeCurrent:%lld, canExpire:%d, expireLimit: %lld\n",vfm->vblankTime,vfm->flipTimeCurrent,f->canExpire, expireLimit);
          if ( f->canExpire && (vfm->vblankTime - vfm->flipTimeCurrent) > expireLimit )
          {
             bool underflow= false;
             if  ( vfm->queueSize <= 1 )
             {
-               DEBUG("underflow: frame expired, queue size 1");
+               ERROR("underflow: frame expired, queue size 1");
                underflow= true;
                #ifdef USE_EXTERNAL_STATS
                avProgLog(f->frameTime*1000LL, vfm->conn->videoResourceId, "WtoD", "underflow: frame expired, queue size 1");
@@ -4053,7 +4054,7 @@ static VideoFrame* wstVideoFrameManagerPopFrame( VideoFrameManager *vfm )
                long long frameGap= vfm->queue[1].frameTime - vfm->queue[0].frameTime;
                if ( frameGap > expireLimit )
                {
-                  DEBUG("underflow: frame expired, queue size %d gap %lld us", vfm->queueSize, frameGap );
+                  ERROR("underflow: frame expired, queue size %d gap %lld us", vfm->queueSize, frameGap );
                   underflow= true;
                   #ifdef USE_EXTERNAL_STATS
                   {
