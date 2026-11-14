@@ -66,6 +66,15 @@ westeros_gl_console_SOURCES = westeros-gl/westeros-gl-console.c
 westeros_gl_console_CFLAGS = $(AM_CFLAGS) -D_GNU_SOURCE
 westeros_gl_console_LDFLAGS = $(AM_LDFLAGS) -lwesteros_gl_console_helper
 
+noinst_HEADERS = westeros-gl/nonblocking-send.h
+EXTRA_DIST = tests/test_nonblocking_notifications.py tests/test_nonblocking_send.c
+
+check-local:
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(srcdir)/tests/test_nonblocking_send.c -o test-nonblocking-send
+	./test-nonblocking-send
+	rm -f test-nonblocking-send
+	python3 $(srcdir)/tests/test_nonblocking_notifications.py
+
 pkgconfigdir = $(libdir)/pkgconfig
    
 distcleancheck_listfiles = *-libtool

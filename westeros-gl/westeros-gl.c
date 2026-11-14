@@ -38,6 +38,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "nonblocking-send.h"
+
 #define EGL_EGLEXT_PROTOTYPES
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -1567,7 +1569,7 @@ static void wstVideoServerSendRefreshRate( VideoServerConnection *conn, int rate
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -1610,7 +1612,7 @@ static void wstVideoServerSendBufferRelease( VideoServerConnection *conn, int bu
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -1653,7 +1655,7 @@ static void wstVideoServerSendStatus( VideoServerConnection *conn, long long dis
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -1695,7 +1697,7 @@ static void wstVideoServerSendUnderflow( VideoServerConnection *conn, long long 
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -1739,7 +1741,7 @@ static void wstVideoServerSendZoomMode( VideoServerConnection *conn, WstGLCtx *c
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -1783,7 +1785,7 @@ static void wstVideoServerSendDebugLevel( VideoServerConnection *conn, int debug
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -1827,7 +1829,7 @@ static void wstVideoServerSendAuthResponse( VideoServerConnection *conn, int sta
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
@@ -2954,7 +2956,7 @@ static void wstDisplayServerSendResponse( DisplayServerConnection *conn )
 
    do
    {
-      sentLen= sendmsg( conn->socketFd, &msg, MSG_NOSIGNAL );
+      sentLen= wstSendMessageNonBlocking( conn->socketFd, &msg, len );
    }
    while ( (sentLen < 0) && (errno == EINTR));
 
