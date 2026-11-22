@@ -4720,6 +4720,38 @@ static void wstProcessUEvent( WstGLCtx *ctx )
 }
 #endif
 
+static drmModeEncoder *wstFindEncoderForCrtc( int drmFd,
+                                              drmModeRes *res,
+                                              drmModeEncoder *current,
+                                              int crtcIndex,
+                                              uint32_t crtcId )
+{
+   drmModeEncoder *encoder= 0;
+   int encoderIndex;
+
+   if ( current )
+   {
+      drmModeFreeEncoder( current );
+   }
+
+   for( encoderIndex= 0; encoderIndex < res->count_encoders; ++encoderIndex )
+   {
+      encoder= drmModeGetEncoder( drmFd, res->encoders[encoderIndex] );
+      if ( encoder )
+      {
+         if ( encoder->possible_crtcs & (1 << crtcIndex) )
+         {
+            encoder->crtc_id= crtcId;
+            break;
+         }
+         drmModeFreeEncoder( encoder );
+         encoder= 0;
+      }
+   }
+
+   return encoder;
+}
+
 static WstGLCtx *wstInitCtx( void )
 {
    WstGLCtx *ctx= 0;
@@ -4932,6 +4964,10 @@ static WstGLCtx *wstInitCtx( void )
          ERROR("wstInitCtx: failed to get resources from card (%s)", card);
          goto exit;
       }
+      INFO("wstInitCtx: resources connectors=%d encoders=%d crtcs=%d",
+         res->count_connectors,
+         res->count_encoders,
+         res->count_crtcs);
       for( i= 0; i < res->count_connectors; ++i )
       {
          conn= drmModeGetConnector( ctx->drmFd, res->connectors[i] );
@@ -4973,27 +5009,37 @@ static WstGLCtx *wstInitCtx( void )
          uint32_t crtcId= 0;
          bool found= false;
          ctx->enc= drmModeGetEncoder(ctx->drmFd, res->encoders[i]);
+         
+         if ( res->count_crtcs > res->count_encoders ) {
+            WARNING("wstInitCtx: count_crtcs(%d) > count_encoders(%d)",
+                    res->count_crtcs,
+                    res->count_encoders);
+         }
+
          if ( ctx->enc && conn && (ctx->enc->encoder_id == conn->encoder_id) )
          {
             found= true;
             break;
          }
+         
+         if ( !ctx->enc ) {
+            continue; 
+         }
+         
          for( j= 0; j < res->count_crtcs; j++ )
          {
             if ( ctx->enc->possible_crtcs & (1 << j))
             {
                crtcId= res->crtcs[j];
-               for( k= 0; k < res->count_crtcs; k++ )
+               ctx->enc= wstFindEncoderForCrtc( ctx->drmFd,
+                                                res,
+                                                ctx->enc,
+                                                j,
+                                                crtcId );
+               if ( ctx->enc )
                {
-                  if ( res->crtcs[k] == crtcId )
-                  {
-                     drmModeFreeEncoder( ctx->enc );
-                     ctx->enc= drmModeGetEncoder(ctx->drmFd, res->encoders[k]);
-                     ctx->enc->crtc_id= crtcId;
-                     DEBUG("got enc %p crtc id %d", ctx->enc, crtcId);
-                     found= true;
-                     break;
-                  }
+                  DEBUG("got enc %p crtc id %d", ctx->enc, crtcId);
+                  found= true;
                }
                if ( found )
                {
@@ -5005,6 +5051,9 @@ static WstGLCtx *wstInitCtx( void )
          {
             drmModeFreeEncoder( ctx->enc );
             ctx->enc= 0;
+         }
+         else{
+            break;
          }
       }
       if ( ctx->enc )
@@ -5498,22 +5547,24 @@ static void wstUpdateCtx( WstGLCtx *ctx )
                   found= true;
                   break;
                }
+
+               if ( !ctx->enc ) {
+                  continue;
+               }
+
                for( j= 0; j < res->count_crtcs; j++ )
                {
                   if ( ctx->enc->possible_crtcs & (1 << j))
                   {
                      crtcId= res->crtcs[j];
-                     for( k= 0; k < res->count_crtcs; k++ )
-                     {
-                        if ( res->crtcs[k] == crtcId )
-                        {
-                           drmModeFreeEncoder( ctx->enc );
-                           ctx->enc= drmModeGetEncoder(ctx->drmFd, res->encoders[k]);
-                           ctx->enc->crtc_id= crtcId;
-                           DEBUG("got enc %p crtc id %d", ctx->enc, crtcId);
-                           found= true;
-                           break;
-                        }
+                     ctx->enc= wstFindEncoderForCrtc( ctx->drmFd,
+                                                      res,
+                                                      ctx->enc,
+                                                      j,
+                                                      crtcId );
+                     if ( ctx->enc ) {
+                        DEBUG("got enc %p crtc id %d", ctx->enc, crtcId);
+                        found= true;
                      }
                      if ( found )
                      {
@@ -5525,6 +5576,9 @@ static void wstUpdateCtx( WstGLCtx *ctx )
                {
                   drmModeFreeEncoder( ctx->enc );
                   ctx->enc= 0;
+               }
+               else {
+                  break;
                }
             }
 

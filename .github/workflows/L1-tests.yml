@@ -1,0 +1,57 @@
+name: L1-tests
+
+on:
+  workflow_call:
+    inputs:
+      caller_source:
+        description: "Specifies the source type (e.g., local or test framework) for the workflow."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  westeros-gl-drm-l1:
+    name: Westeros GL DRM L1 tests and coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake pkg-config libgtest-dev lcov libdrm-dev libgbm-dev libegl1-mesa-dev
+
+      - name: Verify coverage tools
+        run: |
+          lcov --version
+          geninfo --version
+          lcov --version | grep -Eq 'LCOV version 2\.'
+
+      - name: Configure coverage build
+        run: cmake -S L1 -B build/L1 -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+
+      - name: Build L1 tests
+        run: cmake --build build/L1 --parallel "$(nproc)"
+
+      - name: Run L1 tests
+        run: ctest --test-dir build/L1 -L WesterosGlDrm --output-on-failure
+
+      - name: Generate coverage report
+        run: cmake --build build/L1 --target coverage-westeros-gl-drm --parallel
+
+      - name: Upload L1 coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-L1-westeros-gl-drm
+          path: |
+            build/L1/coverage_html_westeros_gl_drm/
+            build/L1/coverage_westeros_gl_drm.info
+            build/L1/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 30
