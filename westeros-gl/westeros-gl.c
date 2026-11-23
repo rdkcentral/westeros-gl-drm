@@ -1926,6 +1926,7 @@ static void *wstVideoServerConnectionThread( void *arg )
       if ( len > 0 )
       {
          fd0= fd1= fd2= -1;
+         int fds_expected= 0;
 
          if ( g_activeLevel >= 7 )
          {
@@ -1945,6 +1946,7 @@ static void *wstVideoServerConnectionThread( void *arg )
                   #ifdef USE_GENERIC_AVSYNC
                   case 'I':
                   #endif
+                     fds_expected= 1;
                      cmsg= CMSG_FIRSTHDR(&msg);
                      if ( cmsg &&
                           cmsg->cmsg_level == SOL_SOCKET &&
@@ -1965,6 +1967,27 @@ static void *wstVideoServerConnectionThread( void *arg )
                   default:
                      break;
                }
+            }
+         }
+
+         if ( !fds_expected )
+         {
+            for ( cmsg= CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg= CMSG_NXTHDR(&msg, cmsg) )
+            {
+               if ( cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS )
+               {
+                  int *fds= (int*)CMSG_DATA(cmsg);
+                  int nfds= (cmsg->cmsg_len - CMSG_LEN(0)) / sizeof(int);
+                  for ( i= 0; i < nfds; ++i )
+                  {
+                     if ( fds[i] >= 0 )
+                     {
+                        close( fds[i] );
+                     }
+                  }
+               }
+            }
+         }
 
                if ( mlen > sizeof(mbody) )
                {
