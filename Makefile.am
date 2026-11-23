@@ -21,6 +21,11 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 SUBDIRS =
 
+TEST_EXTENSIONS = .py
+PY_LOG_COMPILER = $(PYTHON)
+TESTS = tests/test_video_server_connection_lifecycle.py
+EXTRA_DIST = $(TESTS)
+
 AM_CFLAGS = 
 
 AM_LDFLAGS = 

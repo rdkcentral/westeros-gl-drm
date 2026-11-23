@@ -2540,52 +2540,54 @@ exit:
 static VideoServerConnection *wstCreateVideoServerConnection( VideoServerCtx *server, int fd )
 {
    VideoServerConnection *conn= 0;
-   int rc;
-   bool error= false;
 
    conn= (VideoServerConnection*)calloc( 1, sizeof(VideoServerConnection) );
    if ( conn )
    {
-      pthread_attr_t attr;
       pthread_mutex_init( &conn->mutex, 0 );
       conn->socketFd= fd;
       conn->server= server;
       conn->videoResourceId= -1;
-
-      rc= pthread_attr_init( &attr );
-      if ( rc )
-      {
-         ERROR("unable to init pthread attr: errno %d", errno);
-      }
-
-      rc= pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_DETACHED);
-      if ( rc )
-      {
-         ERROR("unable to set pthread attr detached: errno %d", errno);
-      }
-
-      rc= pthread_create( &conn->threadId, &attr, wstVideoServerConnectionThread, conn );
-      if ( rc )
-      {
-         ERROR("unable to start video connection thread: rc %d errno %d", rc, errno);
-         error= true;
-         goto exit;
-      }
-   }
-
-exit:
-
-   if ( error )
-   {
-      if ( conn )
-      {
-         pthread_mutex_destroy( &conn->mutex );
-         free( conn );
-         conn= 0;
-      }
    }
 
    return conn;
+}
+
+static bool wstStartVideoServerConnection( VideoServerConnection *conn )
+{
+   pthread_attr_t attr;
+   int rc;
+   bool result= false;
+
+   rc= pthread_attr_init( &attr );
+   if ( rc )
+   {
+      ERROR("unable to init pthread attr: rc %d", rc);
+      goto exit;
+   }
+
+   rc= pthread_attr_setdetachstate( &attr, PTHREAD_CREATE_DETACHED );
+   if ( rc )
+   {
+      ERROR("unable to set pthread attr detached: rc %d", rc);
+      pthread_attr_destroy( &attr );
+      goto exit;
+   }
+
+   conn->threadStarted= true;
+   rc= pthread_create( &conn->threadId, &attr, wstVideoServerConnectionThread, conn );
+   pthread_attr_destroy( &attr );
+   if ( rc )
+   {
+      conn->threadStarted= false;
+      ERROR("unable to start video connection thread: rc %d", rc);
+      goto exit;
+   }
+
+   result= true;
+
+exit:
+   return result;
 }
 
 static void wstDestroyVideoServerConnection( VideoServerConnection *conn )
@@ -2670,30 +2672,43 @@ static void *wstVideoServerThread( void *arg )
 
             DEBUG("video server received connection: fd %d", fd);
 
+            int i;
+            pthread_mutex_lock( &server->server->mutex );
+            for( i= 0; i < MAX_VIDEO_CONNECTIONS; ++i )
+            {
+               if ( server->connections[i] == 0 )
+               {
+                  break;
+               }
+            }
+
+            if ( i >= MAX_VIDEO_CONNECTIONS )
+            {
+               pthread_mutex_unlock( &server->server->mutex );
+               ERROR("too many video connections");
+               close( fd );
+               continue;
+            }
+
             conn= wstCreateVideoServerConnection( server, fd );
             if ( conn )
             {
-               int i;
                DEBUG("created video server connection %p for fd %d", conn, fd );
-               pthread_mutex_lock( &server->server->mutex );
-               for( i= 0; i < MAX_VIDEO_CONNECTIONS; ++i )
+               server->connections[i]= conn;
+               if ( !wstStartVideoServerConnection( conn ) )
                {
-                  if ( conn->server->connections[i] == 0 )
-                  {
-                     conn->server->connections[i]= conn;
-                     break;
-                  }
-               }
-               if ( i >= MAX_VIDEO_CONNECTIONS )
-               {
-                  ERROR("too many video connections");
+                  server->connections[i]= 0;
+                  pthread_mutex_unlock( &server->server->mutex );
                   wstDestroyVideoServerConnection( conn );
+                  continue;
                }
                pthread_mutex_unlock( &server->server->mutex );
             }
             else
             {
+               pthread_mutex_unlock( &server->server->mutex );
                ERROR("failed to create video server connection for fd %d", fd);
+               close( fd );
             }
          }
          else
