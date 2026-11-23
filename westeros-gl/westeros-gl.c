@@ -32,7 +32,9 @@
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <linux/netlink.h>
 #include <time.h>
@@ -2664,6 +2666,28 @@ static void *wstVideoServerThread( void *arg )
       fd= accept4( server->server->socketFd, (struct sockaddr *)&addr, &addrLen, SOCK_CLOEXEC );
       if ( fd >= 0 )
       {
+         // Verify peer credentials to prevent unauthorized access
+         struct ucred cred;
+         socklen_t credLen = sizeof(cred);
+         if ( getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &credLen) < 0 )
+         {
+            ERROR("video server: failed to get peer credentials: errno %d", errno);
+            close(fd);
+            continue;
+         }
+
+         // Only allow connections from the same user or root
+         uid_t currentUid = getuid();
+         if ( cred.uid != currentUid && cred.uid != 0 )
+         {
+            ERROR("video server: rejecting connection from unauthorized uid %d (expected %d or 0)", 
+                  cred.uid, currentUid);
+            close(fd);
+            continue;
+         }
+
+         DEBUG("video server: accepted connection from uid %d pid %d", cred.uid, cred.pid);
+
          if ( !server->server->threadStopRequested )
          {
             VideoServerConnection *conn= 0;
@@ -2789,6 +2813,15 @@ static bool wstInitServiceServer( const char *name, WstServerCtx **newServer )
    if ( rc < 0 )
    {
       ERROR("wstInitServiceServer: Error: bind failed for socket: errno %d", errno );
+      goto exit;
+   }
+
+   // Restrict socket permissions to owner and group only (0660)
+   // This prevents unauthorized local processes from connecting to the video service
+   rc= fchmod(server->socketFd, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP);
+   if ( rc < 0 )
+   {
+      ERROR("wstInitServiceServer: Error: fchmod failed for socket: errno %d", errno );
       goto exit;
    }
 
@@ -3671,6 +3704,28 @@ static void *wstDisplayServerThread( void *arg )
       fd= accept4( server->server->socketFd, (struct sockaddr *)&addr, &addrLen, SOCK_CLOEXEC );
       if ( fd >= 0 )
       {
+         // Verify peer credentials to prevent unauthorized access
+         struct ucred cred;
+         socklen_t credLen = sizeof(cred);
+         if ( getsockopt(fd, SOL_SOCKET, SO_PEERCRED, &cred, &credLen) < 0 )
+         {
+            ERROR("display server: failed to get peer credentials: errno %d", errno);
+            close(fd);
+            continue;
+         }
+
+         // Only allow connections from the same user or root
+         uid_t currentUid = getuid();
+         if ( cred.uid != currentUid && cred.uid != 0 )
+         {
+            ERROR("display server: rejecting connection from unauthorized uid %d (expected %d or 0)", 
+                  cred.uid, currentUid);
+            close(fd);
+            continue;
+         }
+
+         DEBUG("display server: accepted connection from uid %d pid %d", cred.uid, cred.pid);
+
          if ( !server->server->threadStopRequested )
          {
             int i;
@@ -3774,8 +3829,11 @@ static void wstDestroyVideoFrameManager( VideoFrameManager *vfm )
          {
             if ( vfm->bufferIdCurrent != vfm->queue[i].bufferId )
             {
+               wstOffloadSendBufferRelease( vfm->conn, &vfm->queue[i] );
+            }
+            else
+            {
                wstFreeVideoFrameResources( &vfm->queue[i] );
-               wstVideoServerSendBufferRelease( vfm->conn, vfm->queue[i].bufferId );
             }
          }
          vfm->queueSize= 0;
